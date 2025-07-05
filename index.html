@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ZAINAI - Web3 Airdrop Admin</title>
+  <style>
+    body { font-family: sans-serif; margin: 0; background: #111; color: #fff; }
+    .sidebar { width: 240px; background: #1e1e1e; position: fixed; height: 100vh; padding: 20px; }
+    .sidebar li { list-style: none; margin: 20px 0; cursor: pointer; color: #ccc; }
+    .content { margin-left: 260px; padding: 40px; }
+    .button { padding: 8px 16px; background: #00ffcc; color: black; border: none; border-radius: 5px; cursor: pointer; }
+    input, textarea { width: 100%; padding: 8px; margin: 10px 0; border-radius: 6px; border: none; }
+    .airdrop-post { background: #222; padding: 16px; margin-bottom: 10px; border-radius: 8px; position: relative; }
+    .airdrop-post button { margin-top: 10px; margin-right: 5px; }
+    .modal { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.8); align-items: center; justify-content: center; }
+    .modal-content { background: #222; padding: 30px; border-radius: 10px; text-align: center; max-width: 400px; color: #fff; }
+  </style>
+</head>
+<body>
+  <div class="sidebar">
+    <ul>
+      <li onclick="navigateTo('admin')">🔐 Admin Panel</li>
+      <li><button class="button" onclick="connectWallet()">🔌 Hubungkan Wallet</button></li>
+      <li><button class="button" onclick="logoutWallet()">🚪 Logout</button></li>
+    </ul>
+  </div>
+
+  <div class="content">
+    <section id="admin">
+      <h2>🧑‍💼 Form Admin Airdrop</h2>
+      <div id="adminStatus">Memeriksa status login...</div>
+      <div id="adminForm" style="display:none">
+        <form onsubmit="addAirdrop(event)">
+          <input type="text" id="judulAirdrop" placeholder="Judul Airdrop" required>
+          <textarea id="deskripsiAirdrop" placeholder="Deskripsi lengkap..." rows="4" required></textarea>
+          <input type="url" id="linkAirdrop" placeholder="Link pendaftaran" required>
+          <button type="submit" class="button">Tambah Airdrop</button>
+        </form>
+      </div>
+      <hr>
+      <h3>📋 Daftar Airdrop</h3>
+      <div id="airdropContainer"></div>
+    </section>
+  </div>
+
+  <div class="modal" id="loginModal">
+    <div class="modal-content">
+      <h3>🔐 Login Wallet</h3>
+      <p>Untuk mengakses panel admin, hubungkan wallet admin.</p>
+      <button class="button" onclick="connectWallet()">Hubungkan Wallet</button>
+    </div>
+  </div>
+
+<script>
+const ADMIN_ADDRESS = '0xE2d1cbe5E50ba20ad77F31CF3eb353a48b833983'.toLowerCase();
+let currentAddress = null;
+let editIndex = null;
+
+function navigateTo(id) {
+  document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
+}
+
+function connectWallet() {
+  if (window.ethereum) {
+    ethereum.request({ method: 'eth_requestAccounts' }).then(accounts => {
+      currentAddress = accounts[0].toLowerCase();
+      localStorage.setItem('walletAddress', currentAddress);
+      validateAdmin();
+    });
+  } else {
+    alert('Metamask tidak ditemukan.');
+  }
+}
+
+function logoutWallet() {
+  localStorage.removeItem('walletAddress');
+  currentAddress = null;
+  validateAdmin();
+}
+
+function validateAdmin() {
+  const wallet = localStorage.getItem('walletAddress');
+  const status = document.getElementById('adminStatus');
+  const form = document.getElementById('adminForm');
+  if (wallet && wallet === ADMIN_ADDRESS) {
+    status.innerHTML = '✅ Login sebagai Admin';
+    form.style.display = 'block';
+    document.getElementById('loginModal').style.display = 'none';
+  } else {
+    status.innerHTML = '❌ Akses ditolak';
+    form.style.display = 'none';
+    document.getElementById('loginModal').style.display = 'flex';
+  }
+  renderAirdrops();
+}
+
+function addAirdrop(e) {
+  e.preventDefault();
+  const title = document.getElementById('judulAirdrop').value;
+  const desc = document.getElementById('deskripsiAirdrop').value;
+  const link = document.getElementById('linkAirdrop').value;
+  let data = JSON.parse(localStorage.getItem('airdrops') || '[]');
+
+  if (editIndex !== null) {
+    data[editIndex] = { title, desc, link };
+    editIndex = null;
+  } else {
+    data.push({ title, desc, link });
+  }
+
+  localStorage.setItem('airdrops', JSON.stringify(data));
+  document.getElementById('judulAirdrop').value = '';
+  document.getElementById('deskripsiAirdrop').value = '';
+  document.getElementById('linkAirdrop').value = '';
+  renderAirdrops();
+}
+
+function renderAirdrops() {
+  let data = JSON.parse(localStorage.getItem('airdrops') || '[]');
+  let html = '';
+  data.forEach((airdrop, i) => {
+    html += `
+      <div class="airdrop-post">
+        <h4>${airdrop.title}</h4>
+        <p>${airdrop.desc}</p>
+        <a href="${airdrop.link}" target="_blank">🔗 Daftar Sekarang</a><br>
+        ${currentAddress === ADMIN_ADDRESS ? `
+          <button class="button" onclick="editAirdrop(${i})">Edit</button>
+          <button class="button" onclick="deleteAirdrop(${i})">Hapus</button>
+        ` : ''}
+      </div>
+    `;
+  });
+  document.getElementById('airdropContainer').innerHTML = html;
+}
+
+function editAirdrop(index) {
+  const data = JSON.parse(localStorage.getItem('airdrops') || '[]');
+  const airdrop = data[index];
+  document.getElementById('judulAirdrop').value = airdrop.title;
+  document.getElementById('deskripsiAirdrop').value = airdrop.desc;
+  document.getElementById('linkAirdrop').value = airdrop.link;
+  editIndex = index;
+  navigateTo('admin');
+}
+
+function deleteAirdrop(index) {
+  let data = JSON.parse(localStorage.getItem('airdrops') || '[]');
+  if (confirm('Hapus entri ini?')) {
+    data.splice(index, 1);
+    localStorage.setItem('airdrops', JSON.stringify(data));
+    renderAirdrops();
+  }
+}
+
+window.onload = () => {
+  currentAddress = localStorage.getItem('walletAddress') || null;
+  validateAdmin();
+};
+</script>
+</body>
+</html>
